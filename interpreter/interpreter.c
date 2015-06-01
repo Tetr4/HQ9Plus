@@ -4,8 +4,11 @@
 /*
 Interpreter for HQ9+ files (http://esolangs.org/wiki/HQ9)
 
-Compiling: gcc -ansi -pedantic -Wall HQ9+.c -o HQ9+
-Usage: ./HQ9+ main.hq9+
+Compiling the interpreter:
+    gcc -ansi -pedantic -Wall interpreter.c -o HQ9+
+
+Using the interpreter:
+    ./HQ9+ ../main.hq9+
 
 H: Print "hello, world"
 Q: Print the program's source code
