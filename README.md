@@ -1,4 +1,4 @@
-# HQ9+ Interpreter
+# HQ9+ Interpreter and Compiler
 See http://esolangs.org/wiki/HQ9 for more
 
 ## Instructions
@@ -7,6 +7,11 @@ See http://esolangs.org/wiki/HQ9 for more
 + 9: Print the lyrics to "99 Bottles of Beer"
 + +: Increment the accumulator
 
-## Usage
-+ Compile with: `gcc -ansi -pedantic -Wall HQ9+.c -o HQ9+`
-+ Interpreting: `./HQ9+ main.hq9+`
+## Interpreter
++ Compile the interpreter: `gcc -ansi -pedantic -Wall interpreter.c -o HQ9+`
++ Interpret a HQ9+ program: `./HQ9+ ../main.hq9+`
+
+## Compiler
++ Compile the compiler: `gcc -ansi -pedantic -Wall compiler.c -o HQ9+`
++ Compile and assemble a HQ9+ program: `./HQ9+ ../main.hq9+ | gcc -nostartfiles -o program -xassembler -`
++ Start the program: `./program`
