@@ -5,6 +5,7 @@
 !!! Work in Progress !!!
 
 Compiler for HQ9+ files (http://esolangs.org/wiki/HQ9)
+Outputs x86_64 assembly in AT&T syntax.
 
 H: Print "hello, world"
 Q: Print the program's source code
@@ -40,11 +41,6 @@ int main(int argc, char **argv)
     char instruction;
     char* filename;
     
-    char* prologue;
-    char* epilogue;
-    char* bottles;
-    char* hello_world;
-        
     if(argc != 2)
     {
         /* wrong number of args */
@@ -62,7 +58,8 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE); 
     }
     
-    prologue =
+    /* data segment */
+    puts(
       ".data\n"
       "hello:\n"
       "  .asciz \"hello world \\n\"\n"
@@ -70,27 +67,28 @@ int main(int argc, char **argv)
       "  .asciz \"%d bottles of beer\\n\"\n" /* TODO whole song */
       "accumulator:\n"
       "  .long 0\n"
+    );
+
+    /* begin text segment */
+    puts(
       ".text\n"
       ".globl _start\n"
       "_start:\n"
-      "  subq $8,  %rsp\n";
-      
-    epilogue =
-      "  movq $42, %rdi\n"
-      "  call _exit\n";
-    
-    bottles = 
-      "  movb $0, %al\n"
-      "  leaq bottles(%rip), %rdi\n"
-      "  movq accumulator(%rip), %rsi\n"
-      "  call printf\n";
-      
-    hello_world = 
-      "  movb $0, %al\n"
-      "  leaq hello(%rip), %rdi\n"
-      "  call printf\n";  
-      
-    puts(prologue);
+      /* align stack pointer (%rsp) with multiple of 16 Byte. 
+         Stack starts at high address and grows down -> subtract
+         suffix: b - Byte / 8  bit
+                 w - Word / 16 bit
+                 l - Long / 32 bit
+                 q - Quad / 64 bit <- x86_64 */
+      "  subq $8,  %rsp\n"
+      /* In a function we would align the stack pointer by
+         saving the base (or frame) pointer (%rbp) on the stack:
+        push %rbp
+        movq %rsp, %rbp
+        # your code here...
+        popq $rbp */
+    );
+
     
     /* parse file */
     while((instruction = fgetc(file)) != EOF)
@@ -98,14 +96,33 @@ int main(int argc, char **argv)
         switch (instruction)
         {
             case 'H':
-                puts(hello_world);
+                /* call printf("hello world %d\n", 42) */
+                puts(
+                  /* # don't use printf varargs -> store 0 as vararg length */
+                  "  movb $0, %al\n"
+                  /* load effective address of string relativ to
+                     instruction pointer (%rip) as first argument (%rdi).
+                     Argument sequence for function calls:
+                     %rdi, %rsi, %rdx, %rcx, %r8, %r9 then on the stack in reverse order */
+                  "  leaq hello(%rip), %rdi\n"
+                  "  call printf\n"
+                );
                 break;
+                
             case 'Q':
                 /* TODO print the program's source code */
                 break;
+                
             case '9':
-                puts(bottles);
+                puts(
+                  "  movb $0, %al\n"
+                  "  leaq bottles(%rip), %rdi\n"
+                  /* accumulator as second argument for now*/
+                  "  movq accumulator(%rip), %rsi\n"
+                  "  call printf\n"
+                );
                 break;
+                
             case '+':
                 puts("incq accumulator(%rip) \n");
                 break;
@@ -116,7 +133,11 @@ int main(int argc, char **argv)
     }
     fclose(file);
     
-    puts(epilogue);
+    /* call exit(0) */
+    puts(
+      "  movq $0, %rdi\n"
+      "  call _exit\n"
+    );
     
     exit(EXIT_SUCCESS);
 }
