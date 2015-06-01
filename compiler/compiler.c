@@ -21,7 +21,7 @@ Compile and assemble a HQ9+ program:
         gcc -nostartfiles -o program generated_assembly.s
     
     short:
-        ./HQ9+ ../main.hq9+ | gcc -nostartfiles -o program -xassembler
+        ./HQ9+ ../main.hq9+ | gcc -nostartfiles -o program -xassembler -
     
 Start the program:
     ./program
@@ -83,10 +83,10 @@ int main(int argc, char **argv)
       "  subq $8,  %rsp\n"
       /* In a function we would align the stack pointer by
          saving the base (or frame) pointer (%rbp) on the stack:
-        push %rbp
-        movq %rsp, %rbp
-        # your code here...
-        popq $rbp */
+         push %rbp
+         movq %rsp, %rbp
+         # your code here...
+         popq $rbp */
     );
 
     
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
             case 'H':
                 /* call printf("hello world %d\n", 42) */
                 puts(
-                  /* # don't use printf varargs -> store 0 as vararg length */
+                  /* don't use printf varargs -> store 0 as vararg length */
                   "  movb $0, %al\n"
                   /* load effective address of string relativ to
                      instruction pointer (%rip) as first argument (%rdi).
