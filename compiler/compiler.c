@@ -62,17 +62,48 @@ int main(int argc, char **argv)
     puts(
       ".data\n"
       "hello:\n"
-      "  .asciz \"hello world \\n\"\n"
+      "  .asciz \"hello world\\n\"\n"
       "bottles:\n"
       "  .asciz \"%d bottles of beer\\n\"\n" /* TODO whole song */
       "accumulator:\n"
       "  .long 0\n"
     );
 
-    /* begin text segment */
+    /* text segment */
     puts(
       ".text\n"
       ".globl _start\n"
+      
+      "H:\n"
+      /* call printf("hello world\n") */
+      /* don't use printf varargs -> store 0 as vararg length */
+      "  movb $0, %al\n"
+      /* load effective address of string relativ to
+         instruction pointer (%rip) as first argument (%rdi).
+         Argument sequence for function calls:
+         %rdi, %rsi, %rdx, %rcx, %r8, %r9 then on the stack in reverse order */
+      "  leaq hello(%rip), %rdi\n"
+      "  call printf\n"
+      "  ret\n"
+      
+      "Q:\n"
+      /* TODO print the program's source code */
+      "  ret\n"
+      
+      "Nine:\n"
+      /* call printf("%d bottles of beer\n", accumulator) */
+      /* TODO whole song */
+      "  movb $1, %al\n"
+      "  leaq bottles(%rip), %rdi\n"
+      /* accumulator as second argument for now*/
+      "  movq accumulator(%rip), %rsi\n"
+      "  call printf\n"
+      "  ret\n"
+      
+      "Plus:\n"
+      "  incq accumulator(%rip)\n"
+      "  ret\n"
+      
       "_start:\n"
       /* align stack pointer (%rsp) with multiple of 16 Byte. 
          Stack starts at high address and grows down -> subtract
@@ -80,7 +111,7 @@ int main(int argc, char **argv)
                  w - Word / 16 bit
                  l - Long / 32 bit
                  q - Quad / 64 bit <- x86_64 */
-      "  subq $8,  %rsp\n"
+      "  subq $8,  %rsp"
       /* In a function we would align the stack pointer by
          saving the base (or frame) pointer (%rbp) on the stack:
          push %rbp
@@ -96,35 +127,19 @@ int main(int argc, char **argv)
         switch (instruction)
         {
             case 'H':
-                /* call printf("hello world %d\n", 42) */
-                puts(
-                  /* don't use printf varargs -> store 0 as vararg length */
-                  "  movb $0, %al\n"
-                  /* load effective address of string relativ to
-                     instruction pointer (%rip) as first argument (%rdi).
-                     Argument sequence for function calls:
-                     %rdi, %rsi, %rdx, %rcx, %r8, %r9 then on the stack in reverse order */
-                  "  leaq hello(%rip), %rdi\n"
-                  "  call printf\n"
-                );
+                puts("  call H");
                 break;
                 
             case 'Q':
-                /* TODO print the program's source code */
+                puts("  call Q");
                 break;
                 
             case '9':
-                puts(
-                  "  movb $0, %al\n"
-                  "  leaq bottles(%rip), %rdi\n"
-                  /* accumulator as second argument for now*/
-                  "  movq accumulator(%rip), %rsi\n"
-                  "  call printf\n"
-                );
+                puts("  call Nine");
                 break;
                 
             case '+':
-                puts("incq accumulator(%rip) \n");
+                puts("  call Plus");
                 break;
         }
     }
