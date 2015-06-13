@@ -29,11 +29,8 @@ Start the program:
 Fast testing:
     gcc -ansi -pedantic -Wall compiler.c -o HQ9+ && ./HQ9+ ../main.hq9+ | gcc -nostartfiles -o program -xassembler - && ./program
 */
-
-void print_hello_world();
-void print_source_code(char* filename);
-void print_bottles_of_beer(int bottle_count);
-void increment_the_accumulator(int* accumulator);
+void print_escaped_source_code(char* filename);
+void print_escaped_bottles_of_beer(int initial_bottle_count);
 
 int main(int argc, char **argv)
 {
@@ -59,12 +56,26 @@ int main(int argc, char **argv)
     }
     
     /* data segment */
-    puts(
+    fputs(
       ".data\n"
+      
       "hello:\n"
       "  .asciz \"hello world\\n\"\n"
+      
+      "source:\n"
+      "  .asciz \""
+    , stdout);
+    print_escaped_source_code(filename);
+    puts("\"");
+    
+    fputs(
       "bottles:\n"
-      "  .asciz \"%d bottles of beer\\n\"\n" /* TODO whole song */
+      "  .asciz \""
+    , stdout);
+    print_escaped_bottles_of_beer(99);
+    puts("\"");
+    
+    puts(
       "accumulator:\n"
       "  .long 0\n"
     );
@@ -87,12 +98,14 @@ int main(int argc, char **argv)
       "  ret\n"
       
       "Q:\n"
-      /* TODO print the program's source code */
+      "  movb $0, %al\n"
+      "  leaq source(%rip), %rdi\n"
+      "  call printf\n"
       "  ret\n"
       
       "Nine:\n"
       /* call printf("%d bottles of beer\n", accumulator) */
-      /* TODO whole song */
+      /* TODO assembly loop for whole song */
       "  movb $1, %al\n"
       "  leaq bottles(%rip), %rdi\n"
       /* accumulator as second argument for now*/
@@ -158,3 +171,75 @@ int main(int argc, char **argv)
 }
 
 
+void print_escaped_source_code(char* filename)
+{
+    int c;
+    FILE *file;
+    
+    /* Open file again for second independent seek point indicator.
+       Read only -> No problem to have same file open multiple times. */
+    file = fopen(filename, "r");
+    if (file == NULL)
+    {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+    
+    /* Print source code */
+    while ((c = getc(file)) != EOF)
+    {
+        /* escape special characters */
+        switch (c)
+        {
+            case '\a':  fputs("\\a", stdout); break;
+            case '\b':  fputs("\\b", stdout); break;
+            case '\f':  fputs("\\f", stdout); break;
+            case '\n':  fputs("\\n", stdout); break;
+            case '\r':  fputs("\\r", stdout); break;
+            case '\t':  fputs("\\t", stdout); break;
+            case '\v':  fputs("\\v", stdout); break;
+            case '\\':  fputs("\\\\", stdout); break;
+            case '\'':  fputs("\\'", stdout); break;
+            case '\"':  fputs("\\\"", stdout); break;
+            case '\?':  fputs("\\\?", stdout); break;
+            default:
+                putchar(c);
+        }
+    }
+    
+    /* Close second file descriptor */
+    fclose(file);
+}
+
+void print_escaped_bottles_of_beer(int initial_bottle_count)
+{
+    /* TODO only text required for assembly loop */
+    int bottle_count;
+    char* pluralized_bottle;
+
+    for (bottle_count = initial_bottle_count; bottle_count >= 0; bottle_count--)
+    {
+        if (bottle_count > 0)
+        {
+            pluralized_bottle = bottle_count == 1 ? "bottle" : "bottles";
+            printf("%d %s of beer on the wall, %d %s of beer.\\n" \
+                     "Take one down and pass it around, ", bottle_count, pluralized_bottle, bottle_count, pluralized_bottle);
+            if (bottle_count == 1)
+            {
+                printf("no more bottles of beer on the wall.\\n");
+            }
+            else
+            {
+                pluralized_bottle = bottle_count-1 == 1 ? "bottle" : "bottles";
+                printf("%d %s of beer on the wall.\\n", bottle_count-1, pluralized_bottle);
+            }
+        }
+        else
+        {
+            pluralized_bottle = initial_bottle_count == 1 ? "bottle" : "bottles";
+            printf("No more bottles of beer on the wall, no more bottles of beer.\\n" \
+            "Go to the store and buy some more, " \
+            "%d %s of beer on the wall.\\n", initial_bottle_count, pluralized_bottle);
+        }
+    }
+}
