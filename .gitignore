@@ -1,8 +1,7 @@
-# Ignore all
+# Executable files (no extension):
 *
-
-# Unignore all with extensions
 !*.*
-
-# Unignore all dirs
 !*/
+
+# generated assembly files
+*.s
