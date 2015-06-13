@@ -18,7 +18,7 @@ Q: Print the program's source code
 
 void print_hello_world();
 void print_source_code(char* filename);
-void print_bottles_of_beer(int bottle_count);
+void print_bottles_of_beer(int initial_bottle_count);
 void increment_the_accumulator(int* accumulator);
 
 int main(int argc, char **argv)
@@ -106,11 +106,12 @@ void print_source_code(char* filename)
     fclose(file);
 }
 
-void print_bottles_of_beer(int bottle_count)
+void print_bottles_of_beer(int initial_bottle_count)
 {
-    int original_bottle_count = bottle_count;
+    int bottle_count;
     char plural_s;
-    for (; bottle_count >= 0; bottle_count--)
+
+    for (bottle_count = initial_bottle_count; bottle_count >= 0; bottle_count--)
     {
         if (bottle_count > 0)
         {
@@ -129,10 +130,10 @@ void print_bottles_of_beer(int bottle_count)
         }
         else
         {
-            plural_s = original_bottle_count == 1 ? '\0' : 's';
+            plural_s = initial_bottle_count == 1 ? '\0' : 's';
             printf("No more bottles of beer on the wall, no more bottles of beer.\n" \
             "Go to the store and buy some more, " \
-            "%d bottle%c of beer on the wall.\n", original_bottle_count, plural_s);
+            "%d bottle%c of beer on the wall.\n", initial_bottle_count, plural_s);
         }
     }
 }
