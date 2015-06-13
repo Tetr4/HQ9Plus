@@ -84,7 +84,7 @@ void print_hello_world()
 
 void print_source_code(char* filename)
 {
-    char c;
+    int c;
     FILE *file;
     
     /* Open file again for second independent seek point indicator.
