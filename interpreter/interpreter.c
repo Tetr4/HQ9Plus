@@ -40,7 +40,6 @@ int main(int argc, char **argv)
     file = fopen(filename, "r");
     if (file == NULL)
     {
-        /* could not open file */
         perror("Error opening file");
         exit(EXIT_FAILURE); 
     }
@@ -84,17 +83,26 @@ void print_hello_world()
 
 void print_source_code(char* filename)
 {
-    /* TODO Buffer Data */
-    int c;
+    char c;
     FILE *file;
+    
+    /* open file again for second independent seek point indicator.
+       read only -> no problem to have same file open multiple times  */
     file = fopen(filename, "r");
-    if (file) {
-        while ((c = getc(file)) != EOF)
-        {
-            putchar(c);
-        }
-    fclose(file);
+    if (file == NULL)
+    {
+        perror("Error opening file");
+        exit(EXIT_FAILURE); 
     }
+    
+    /* print source code */
+    while ((c = getc(file)) != EOF)
+    {
+        putchar(c);
+    }
+    
+    /* close second file descriptor */
+    fclose(file);
 }
 
 void print_bottles_of_beer(int bottle_count)
