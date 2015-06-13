@@ -28,14 +28,14 @@ int main(int argc, char **argv)
     char* filename;
     int the_accumulator = 0;
     
-    if(argc != 2)
+    if (argc != 2)
     {
-        /* wrong number of args */
+        /* Wrong number of args */
         fprintf(stderr, "Error: exactly 1 HQ9+ source file as arg required\n");
         exit(EXIT_FAILURE);
     }
     
-    /* open file */
+    /* Open file */
     filename = argv[1];
     file = fopen(filename, "r");
     if (file == NULL)
@@ -44,8 +44,8 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE); 
     }
     
-    /* parse file */
-    while((instruction = fgetc(file)) != EOF)
+    /* Parse file */
+    while ((instruction = fgetc(file)) != EOF)
     {
         switch (instruction)
         {
@@ -63,11 +63,12 @@ int main(int argc, char **argv)
                 break;
         }
     }
-    if (!feof(file)) {
+    if (!feof(file))
+    {
         perror("Error reading file");
     }
     
-    /* close file */
+    /* Close file */
     fclose(file);
     
     exit(EXIT_SUCCESS);
@@ -86,22 +87,22 @@ void print_source_code(char* filename)
     char c;
     FILE *file;
     
-    /* open file again for second independent seek point indicator.
-       read only -> no problem to have same file open multiple times  */
+    /* Open file again for second independent seek point indicator.
+       Read only -> No problem to have same file open multiple times. */
     file = fopen(filename, "r");
     if (file == NULL)
     {
         perror("Error opening file");
-        exit(EXIT_FAILURE); 
+        exit(EXIT_FAILURE);
     }
     
-    /* print source code */
+    /* Print source code */
     while ((c = getc(file)) != EOF)
     {
         putchar(c);
     }
     
-    /* close second file descriptor */
+    /* Close second file descriptor */
     fclose(file);
 }
 
@@ -109,9 +110,9 @@ void print_bottles_of_beer(int bottle_count)
 {
     int original_bottle_count = bottle_count;
     char plural_s;
-    for(; bottle_count >= 0; bottle_count--)
+    for (; bottle_count >= 0; bottle_count--)
     {
-        if(bottle_count > 0)
+        if (bottle_count > 0)
         {
             plural_s = bottle_count == 1 ? '\0' : 's';
             printf("%d bottle%c of beer on the wall, %d bottle%c of beer.\n" \
