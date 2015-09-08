@@ -1,5 +1,6 @@
-# HQ9+ Interpreter and Compiler
-See http://esolangs.org/wiki/HQ9 for more
+# HQ9+ Interpreter, Compiler and JIT-Compiler
+See http://esolangs.org/wiki/HQ9 for more on HQ9+. <br>
+See [Interpreter, Compiler, JIT](https://nickdesaulniers.github.io/blog/2015/05/25/interpreter-compiler-jit/) for more on translation techniques.
 
 ## Instructions
 + H: Print "hello, world"
@@ -15,3 +16,7 @@ See http://esolangs.org/wiki/HQ9 for more
 + Compile the compiler: `gcc -ansi -pedantic -Wall compiler.c -o HQ9+`
 + Compile and assemble a HQ9+ program: `./HQ9+ ../main.hq9+ | gcc -nostartfiles -o program -xassembler -`
 + Start the program: `./program`
+
+## JIT-Compiler
++ Compile the jit compiler: `gcc jit.c vector.c -o jit`
++ Jit a program: `./jit ../main.hq9+`

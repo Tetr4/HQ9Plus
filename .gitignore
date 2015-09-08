@@ -3,5 +3,6 @@
 !*.*
 !*/
 
-# generated assembly files
+# generated files
 *.s
+*.o
