@@ -55,12 +55,16 @@ int main(int argc, char **argv)
     /* prologue */
     char prologue [] = {
         0x55, // push %rbp
-        0x48, 0x89, 0xE5, // mov rsp, rbp
+        0x48, 0x89, 0xE5, // mov %rsp, %rbp
 
         // backup %r12 (callee saved register)
         0x41, 0x54, // pushq %r12
-        // store %rdi (putchar) as callee saved
-        0x49, 0x89, 0xFC // movq %rdi, %r12
+        // store %rdi content (putchar) in %r12 as callee saved
+        0x49, 0x89, 0xFC, // movq %rdi, %r12
+
+        // push accumulator on stack
+        // accumulator address: -0x10(%rbp)
+        0x6a, 0x00, // pushq $0
     };
     vector_push(&instruction_stream, prologue, sizeof(prologue));
 
@@ -72,6 +76,7 @@ int main(int argc, char **argv)
             case 'H':
                 {
                     char opcodes [] = {
+                        // TODO call printf with address of "hello world" as param
                         // call putchar('H')
                         0xBF, 0x48, 0x00, 0x00, 0x00, // mov $0x48, %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
@@ -83,6 +88,7 @@ int main(int argc, char **argv)
             case 'Q':
                 {
                     char opcodes [] = {
+                        // TODO call printf with address of source code as param
                         // call putchar('Q')
                         0xBF, 0x51, 0x00, 0x00, 0x00, // mov $0x51, %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
@@ -94,6 +100,7 @@ int main(int argc, char **argv)
             case '9':
                 {
                     char opcodes [] = {
+                        // TODO call printf with address of lyrics as param
                         // call putchar('9')
                         0xBF, 0x39, 0x00, 0x00, 0x00, // mov $0x39, %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
@@ -105,8 +112,11 @@ int main(int argc, char **argv)
             case '+':
                 {
                     char opcodes [] = {
-                        // call putchar('+')
-                        0xBF, 0x2B, 0x00, 0x00, 0x00, // mov $0x2B, %edi
+                        // increment the accumulator
+                        0x48, 0xFF, 0x45, 0xF0, // incq -0x10(%rbp)
+
+                        // call putchar(the_accumulator)
+                        0x8B, 0x7D, 0xF0, //  mov -0x10(%rbp), %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
@@ -121,6 +131,10 @@ int main(int argc, char **argv)
 
     /* epilogue */
     char epilogue [] = {
+        // free accumulator
+        0x48, 0x83, 0xC4, 0x08, // addq $8, %rsp
+        // 0x48, 0x81, 0xC4, 0x08, 0x00, 0x00, 0x00, // addq $8, %rsp
+
         // restore callee saved registers
         0x41, 0x5C, // popq %r12
 
