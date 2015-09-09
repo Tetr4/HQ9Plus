@@ -74,19 +74,18 @@ int main(int argc, char **argv)
         0x6a, 0x00, // pushq $0
     };
     vector_push(&instruction_stream, prologue, sizeof(prologue));
-    char rsp = -0x10;
+    int rsp = -0x10;
 
-    char text_bytes_on_stack = 0;
+    int text_bytes_on_stack = 0l;
 
-    text_bytes_on_stack += write_to_stack(&instruction_stream, "H");
-    char offset_hello_world = -text_bytes_on_stack + rsp;
+    text_bytes_on_stack += write_to_stack(&instruction_stream, "Hello World");
+    int offset_hello_world = -text_bytes_on_stack + rsp;
 
     text_bytes_on_stack += write_to_stack(&instruction_stream, "Q");
-    char offset_source = -text_bytes_on_stack + rsp;
+    int offset_source = -text_bytes_on_stack + rsp;
 
-    text_bytes_on_stack += write_to_stack(&instruction_stream, "9");
-    char offset_bottles = -text_bytes_on_stack + rsp;
-
+    text_bytes_on_stack += write_to_stack(&instruction_stream, "99 Bottles");
+    int offset_bottles = -text_bytes_on_stack + rsp;
 
     /*** parse file ***/
     while((instruction = fgetc(file)) != EOF)
@@ -95,9 +94,11 @@ int main(int argc, char **argv)
         {
             case 'H':
                 {
+                    // access single chars of int
+                    char *hw = (char*) &offset_hello_world;
                     char opcodes [] = {
                         // TODO call printf
-                        0x8B, 0x7D, offset_hello_world, // mov -0x<offset>(%rbp), %edi
+                        0x8B, 0xBD, hw[0], hw[1], hw[2], hw[3], // mov -0x<offset>(%rbp), %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
@@ -106,9 +107,11 @@ int main(int argc, char **argv)
 
             case 'Q':
                 {
+                    // access single chars of int
+                    char *s = (char*) &offset_source;
                     char opcodes [] = {
                         // TODO call printf
-                        0x8B, 0x7D, offset_source, // mov -0x<offset>(%rbp), %edi
+                        0x8B, 0xBD, s[0], s[1], s[2], s[3], // mov -0x<offset>(%rbp), %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
@@ -117,9 +120,11 @@ int main(int argc, char **argv)
 
             case '9':
                 {
+                    // access single chars of int
+                    char *b = (char*) &offset_bottles;
                     char opcodes [] = {
                         // TODO call printf
-                        0x8B, 0x7D, offset_bottles, // mov -0x<offset>(%rbp), %edi
+                        0x8B, 0xBD, b[0], b[1], b[2], b[3], // mov -0x<offset>(%rbp), %edi
                         // 0xBF, 0x39, 0x00, 0x00, 0x00, // mov $0x39, %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
@@ -149,9 +154,11 @@ int main(int argc, char **argv)
 
 
     /*** epilogue ***/
+    // access single chars of long
+    char *t = (char*) &text_bytes_on_stack;
     char epilogue [] = {
         // free strings
-        0x48, 0x83, 0xC4, text_bytes_on_stack, // addq $<x>, %rsp
+        0x48, 0x81, 0xC4, t[0], t[1], t[2], t[3], // addq $<x>, %rsp
         // 0x48, 0x83, 0xC4, 0x08, // addq $8, %rsp
 
         // free accumulator
@@ -185,20 +192,18 @@ int main(int argc, char **argv)
 
 int write_to_stack(struct vector* const stream, char* text)
 {
-    // TODO 8 byte at once?
-    char additional_bytes_on_stack = 0;
-    char* char_ptr;
-    for (char_ptr = text; *char_ptr != '\0'; char_ptr++){
-        if(*char_ptr == '\0') {
-            // ignore for now
-            // FIXME
-            //return;
-        }
+    int additional_bytes_on_stack = 0;
+
+    // push on stack in reverse order
+    int i;
+    for (i = strlen(text)-1; i >= 0; --i) {
+        // TODO 8 byte at once?
         char push_char [] = {
-            0x6a, *char_ptr  // pushq $<char>
+            0x6a, text[i]  // pushq $<char>
         };
         vector_push(stream, push_char, sizeof(push_char));
         additional_bytes_on_stack += (sizeof(push_char) - sizeof(char)) * sizeof(long);
     }
+
     return additional_bytes_on_stack;
 }
