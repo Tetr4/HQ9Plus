@@ -7,7 +7,7 @@
 /*
 !!! Work in Progress !!!
 TODO: no errors/warnings on 'gcc -ansi -pedantic -Wall jit.c vector.c -o jit'
-TODO: functionality for H,Q,9 and + instructions
+TODO: functionality for H,Q and 9 instructions
 
 JIT-Compiler for HQ9+ files (http://esolangs.org/wiki/HQ9)
 
@@ -21,10 +21,17 @@ Compile the jit compiler:
 
 Jit a program:
     ./jit ../main.hq9+
+
+Debug output:
+    gcc jit.c vector.c -o jit && ./jit ../main.hq9+ | hexdump -C
+
+Test assembly:
+    gcc -nostartfiles -o assembly_test assembly.s && objdump -s assembly_test
 */
 
 /* libc function as argument, for easy access */
 typedef int fn_putchar (int);
+int write_to_stack(struct vector* const vec, char* text);
 
 int main(int argc, char **argv)
 {
@@ -50,9 +57,9 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    vector_create(&instruction_stream, 100);
 
-    /* prologue */
+    /*** prologue ***/
+    vector_create(&instruction_stream, 100);
     char prologue [] = {
         0x55, // push %rbp
         0x48, 0x89, 0xE5, // mov %rsp, %rbp
@@ -67,8 +74,21 @@ int main(int argc, char **argv)
         0x6a, 0x00, // pushq $0
     };
     vector_push(&instruction_stream, prologue, sizeof(prologue));
+    char rsp = -0x10;
 
-    /* parse file */
+    char text_bytes_on_stack = 0;
+
+    text_bytes_on_stack += write_to_stack(&instruction_stream, "H");
+    char offset_hello_world = -text_bytes_on_stack + rsp;
+
+    text_bytes_on_stack += write_to_stack(&instruction_stream, "Q");
+    char offset_source = -text_bytes_on_stack + rsp;
+
+    text_bytes_on_stack += write_to_stack(&instruction_stream, "9");
+    char offset_bottles = -text_bytes_on_stack + rsp;
+
+
+    /*** parse file ***/
     while((instruction = fgetc(file)) != EOF)
     {
         switch (instruction)
@@ -76,9 +96,8 @@ int main(int argc, char **argv)
             case 'H':
                 {
                     char opcodes [] = {
-                        // TODO call printf with address of "hello world" as param
-                        // call putchar('H')
-                        0xBF, 0x48, 0x00, 0x00, 0x00, // mov $0x48, %edi
+                        // TODO call printf
+                        0x8B, 0x7D, offset_hello_world, // mov -0x<offset>(%rbp), %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
@@ -88,9 +107,8 @@ int main(int argc, char **argv)
             case 'Q':
                 {
                     char opcodes [] = {
-                        // TODO call printf with address of source code as param
-                        // call putchar('Q')
-                        0xBF, 0x51, 0x00, 0x00, 0x00, // mov $0x51, %edi
+                        // TODO call printf
+                        0x8B, 0x7D, offset_source, // mov -0x<offset>(%rbp), %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
@@ -100,9 +118,9 @@ int main(int argc, char **argv)
             case '9':
                 {
                     char opcodes [] = {
-                        // TODO call printf with address of lyrics as param
-                        // call putchar('9')
-                        0xBF, 0x39, 0x00, 0x00, 0x00, // mov $0x39, %edi
+                        // TODO call printf
+                        0x8B, 0x7D, offset_bottles, // mov -0x<offset>(%rbp), %edi
+                        // 0xBF, 0x39, 0x00, 0x00, 0x00, // mov $0x39, %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
@@ -129,8 +147,13 @@ int main(int argc, char **argv)
     }
     fclose(file);
 
-    /* epilogue */
+
+    /*** epilogue ***/
     char epilogue [] = {
+        // free strings
+        0x48, 0x83, 0xC4, text_bytes_on_stack, // addq $<x>, %rsp
+        // 0x48, 0x83, 0xC4, 0x08, // addq $8, %rsp
+
         // free accumulator
         0x48, 0x83, 0xC4, 0x08, // addq $8, %rsp
         // 0x48, 0x81, 0xC4, 0x08, 0x00, 0x00, 0x00, // addq $8, %rsp
@@ -143,11 +166,13 @@ int main(int argc, char **argv)
     };
     vector_push(&instruction_stream, epilogue, sizeof(epilogue));
 
+
+    /*** invoke generated code ***/
     /* allocate and copy instruction stream into executable memory */
     void* mem = mmap(NULL, instruction_stream.size, PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     memcpy(mem, instruction_stream.data, instruction_stream.size);
 
-    /* typecast memory to a function pointer and invoke the dynamically created executable code */
+    /* typecast memory to a function pointer and call the dynamically created executable code */
     void (*hq9p_program) (fn_putchar) = mem;
     hq9p_program(putchar);
 
@@ -156,4 +181,24 @@ int main(int argc, char **argv)
     vector_destroy(&instruction_stream);
 
     exit(EXIT_SUCCESS);
+}
+
+int write_to_stack(struct vector* const stream, char* text)
+{
+    // TODO 8 byte at once?
+    char additional_bytes_on_stack = 0;
+    char* char_ptr;
+    for (char_ptr = text; *char_ptr != '\0'; char_ptr++){
+        if(*char_ptr == '\0') {
+            // ignore for now
+            // FIXME
+            //return;
+        }
+        char push_char [] = {
+            0x6a, *char_ptr  // pushq $<char>
+        };
+        vector_push(stream, push_char, sizeof(push_char));
+        additional_bytes_on_stack += (sizeof(push_char) - sizeof(char)) * sizeof(long);
+    }
+    return additional_bytes_on_stack;
 }
