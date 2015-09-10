@@ -5,9 +5,7 @@
 #include "vector.h"
 
 /*
-!!! Work in Progress !!!
 TODO: no errors/warnings on 'gcc -ansi -pedantic -Wall jit.c vector.c -o jit'
-TODO: functionality for H,Q and 9 instructions
 
 JIT-Compiler for HQ9+ files (http://esolangs.org/wiki/HQ9)
 
@@ -26,12 +24,15 @@ Debug output:
     gcc jit.c vector.c -o jit && ./jit ../main.hq9+ | hexdump -C
 
 Test assembly:
-    gcc -nostartfiles -o assembly_test assembly.s && objdump -s assembly_test
+    gcc -nostartfiles -o assembly_test assembly_code.s && objdump -s assembly_test
 */
 
-/* libc function as argument, for easy access */
+void write_to_stack(struct vector* const vec, char* text, int* stack_offset);
+char* get_source_code(char* filename);
+char* get_lyrics(int initial_bottle_count);
+
+/* libc function as assembly argument, for easy access */
 typedef int fn_printf (const char *, ...);
-void write_to_stack(struct vector* const vec, char* text, int* stack_pointer);
 
 int main(int argc, char **argv)
 {
@@ -74,21 +75,27 @@ int main(int argc, char **argv)
     };
     vector_push(&instruction_stream, prologue, sizeof(prologue));
 
-    int stack_pointer = -0x10; // (%rsp)
-    int offset_accumulator = stack_pointer; // accumulator address: -0x10(%rbp)
+    int stack_offset = -0x10; // offset from %rbp
+    int offset_accumulator = stack_offset; // accumulator address: -0x10(%rbp)
 
-    write_to_stack(&instruction_stream, "Hello World\n", &stack_pointer);
-    int offset_hello_world = stack_pointer;
+    // hello world
+    write_to_stack(&instruction_stream, "Hello World\n", &stack_offset);
+    int offset_hello_world = stack_offset;
 
-    write_to_stack(&instruction_stream, "Q\n", &stack_pointer);
-    int offset_source = stack_pointer;
+    // source code
+    char* source_code = get_source_code(filename);
+    write_to_stack(&instruction_stream, source_code, &stack_offset);
+    free(source_code);
+    int offset_source = stack_offset;
 
-    write_to_stack(&instruction_stream, "99 Bottles\n", &stack_pointer);
-    int offset_bottles = stack_pointer;
-
+    // lyrics
+    char* lyrics = get_lyrics(99);
+    write_to_stack(&instruction_stream, lyrics, &stack_offset);
+    free(lyrics);
+    int offset_bottles = stack_offset;
 
     // everything after accumulator is text bytes
-    int text_bytes_on_stack = -(stack_pointer - offset_accumulator);
+    int text_bytes_on_stack = -(stack_offset - offset_accumulator);
 
 
     /*** parse file ***/
@@ -190,7 +197,7 @@ int main(int argc, char **argv)
     exit(EXIT_SUCCESS);
 }
 
-void write_to_stack(struct vector* const stream, char* text, int* stack_pointer)
+void write_to_stack(struct vector* const stream, char* text, int* stack_offset)
 {
     /*
         Calculate and allocate required stack space (8 aligned, with \0 terminator),
@@ -230,7 +237,7 @@ void write_to_stack(struct vector* const stream, char* text, int* stack_pointer)
         0x48, 0x81, 0xEC, s[0], s[1], s[2], s[3] // subq $0x<required_space_aligned>, %rsp
     };
     vector_push(stream, allocate, sizeof(allocate));
-    *stack_pointer -= required_space_aligned;
+    *stack_offset -= required_space_aligned;
 
     /*
         push chars in quads on the stack (in reverse order, e.g. ... "rld00000" "hello wo")
@@ -242,7 +249,7 @@ void write_to_stack(struct vector* const stream, char* text, int* stack_pointer)
         movq $0x6f57206f6c6c6548, %rax
         movq %rax,-0x20(%rbp)
     */
-    int write_pos = *stack_pointer; // where to write on stack
+    int write_pos = *stack_offset; // where to write on stack
     int chars_written = 0;
     char* char_ptr;
     for (char_ptr = text; *char_ptr != '\0'; char_ptr++){
@@ -286,4 +293,99 @@ void write_to_stack(struct vector* const stream, char* text, int* stack_pointer)
         vector_push(stream, mov_to_stack, sizeof(mov_to_stack));
     }
 
+}
+
+char* get_source_code(char* filename)
+{
+    FILE *file;
+    long length;
+    char *buffer;
+
+    /* Open file again for second independent seek point indicator.
+       Read only -> No problem to have same file open multiple times. */
+    file = fopen(filename, "r");
+    if (file == NULL)
+    {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+
+    /* get file length */
+    fseek(file , 0L , SEEK_END);
+    length = ftell(file);
+    rewind(file);
+
+    /* allocate memory for file content */
+    buffer = malloc(length+1);
+    if(buffer == NULL) {
+         fclose(file);
+         perror("Error allocating memory for source code");
+         exit(EXIT_FAILURE);
+    }
+
+    /* copy the file into the buffer */
+    if(fread(buffer, 1, length, file) != length) {
+        fclose(file);
+        free(buffer);
+        perror("Could not read file into buffer");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Close second file descriptor */
+    fclose(file);
+
+    return buffer;
+}
+
+char* get_lyrics(int initial_bottle_count)
+{
+    int bottle_count;
+    char* pluralized_bottle;
+
+    const int MAX_LINE_LENGTH = 256; // just a guess
+    char line_buffer[MAX_LINE_LENGTH];
+    int chars_to_write;
+    struct vector lyrics_stream;
+    char* buffer;
+
+    vector_create(&lyrics_stream, 100);
+
+    // create formated strings and put them into a vector.
+    for (bottle_count = initial_bottle_count; bottle_count >= 0; bottle_count--)
+    {
+        if (bottle_count > 0)
+        {
+            pluralized_bottle = bottle_count == 1 ? "bottle" : "bottles";
+            chars_to_write = snprintf(line_buffer, MAX_LINE_LENGTH, "%d %s of beer on the wall, %d %s of beer.\n" \
+                     "Take one down and pass it around, ", bottle_count, pluralized_bottle, bottle_count, pluralized_bottle);
+            vector_push(&lyrics_stream, line_buffer, chars_to_write);
+            if (bottle_count == 1)
+            {
+                chars_to_write = snprintf(line_buffer, MAX_LINE_LENGTH, "no more bottles of beer on the wall.\n");
+                vector_push(&lyrics_stream, line_buffer, chars_to_write);
+            }
+            else
+            {
+                pluralized_bottle = bottle_count-1 == 1 ? "bottle" : "bottles";
+                chars_to_write = snprintf(line_buffer, MAX_LINE_LENGTH, "%d %s of beer on the wall.\n", bottle_count-1, pluralized_bottle);
+                vector_push(&lyrics_stream, line_buffer, chars_to_write);
+            }
+        }
+        else
+        {
+            pluralized_bottle = initial_bottle_count == 1 ? "bottle" : "bottles";
+            chars_to_write = snprintf(line_buffer, MAX_LINE_LENGTH, "No more bottles of beer on the wall, no more bottles of beer.\n" \
+            "Go to the store and buy some more, " \
+            "%d %s of beer on the wall.\n", initial_bottle_count, pluralized_bottle);
+            vector_push(&lyrics_stream, line_buffer, chars_to_write);
+        }
+    }
+
+    // copy data to buffer so the vector can be freed.
+    buffer = malloc(lyrics_stream.size);
+    memcpy(buffer, lyrics_stream.data, lyrics_stream.size);
+
+    vector_destroy(&lyrics_stream);
+
+    return buffer;
 }
