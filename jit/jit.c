@@ -30,8 +30,8 @@ Test assembly:
 */
 
 /* libc function as argument, for easy access */
-typedef int fn_putchar (int);
-int write_to_stack(struct vector* const vec, char* text);
+typedef int fn_printf (const char *, ...);
+void write_to_stack(struct vector* const vec, char* text, int* stack_pointer);
 
 int main(int argc, char **argv)
 {
@@ -70,22 +70,26 @@ int main(int argc, char **argv)
         0x49, 0x89, 0xFC, // movq %rdi, %r12
 
         // push accumulator on stack
-        // accumulator address: -0x10(%rbp)
         0x6a, 0x00, // pushq $0
     };
     vector_push(&instruction_stream, prologue, sizeof(prologue));
-    int rsp = -0x10;
 
-    int text_bytes_on_stack = 0l;
+    int stack_pointer = -0x10; // (%rsp)
+    int offset_accumulator = stack_pointer; // accumulator address: -0x10(%rbp)
 
-    text_bytes_on_stack += write_to_stack(&instruction_stream, "Hello World");
-    int offset_hello_world = -text_bytes_on_stack + rsp;
+    write_to_stack(&instruction_stream, "Hello World", &stack_pointer);
+    int offset_hello_world = stack_pointer;
 
-    text_bytes_on_stack += write_to_stack(&instruction_stream, "Q");
-    int offset_source = -text_bytes_on_stack + rsp;
+    write_to_stack(&instruction_stream, "Q", &stack_pointer);
+    int offset_source = stack_pointer;
 
-    text_bytes_on_stack += write_to_stack(&instruction_stream, "99 Bottles");
-    int offset_bottles = -text_bytes_on_stack + rsp;
+    write_to_stack(&instruction_stream, "99 Bottles", &stack_pointer);
+    int offset_bottles = stack_pointer;
+
+
+    // everything after accumulator is text bytes
+    int text_bytes_on_stack = -(stack_pointer - offset_accumulator);
+
 
     /*** parse file ***/
     while((instruction = fgetc(file)) != EOF)
@@ -97,8 +101,8 @@ int main(int argc, char **argv)
                     // access single chars of int
                     char *hw = (char*) &offset_hello_world;
                     char opcodes [] = {
-                        // TODO call printf
-                        0x8B, 0xBD, hw[0], hw[1], hw[2], hw[3], // mov -0x<offset>(%rbp), %edi
+                        0xB0, 00, // movb $0, %al
+                        0x48, 0x8D, 0xBD, hw[0], hw[1], hw[2], hw[3], // leaq -0x<offset>(%rbp),%rdi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
@@ -110,8 +114,8 @@ int main(int argc, char **argv)
                     // access single chars of int
                     char *s = (char*) &offset_source;
                     char opcodes [] = {
-                        // TODO call printf
-                        0x8B, 0xBD, s[0], s[1], s[2], s[3], // mov -0x<offset>(%rbp), %edi
+                        0xB0, 00, // movb $0, %al
+                        0x48, 0x8D, 0xBD, s[0], s[1], s[2], s[3], // leaq -0x<offset>(%rbp),%rdi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
@@ -123,8 +127,8 @@ int main(int argc, char **argv)
                     // access single chars of int
                     char *b = (char*) &offset_bottles;
                     char opcodes [] = {
-                        // TODO call printf
-                        0x8B, 0xBD, b[0], b[1], b[2], b[3], // mov -0x<offset>(%rbp), %edi
+                        0xB0, 00, // movb $0, %al
+                        0x48, 0x8D, 0xBD, b[0], b[1], b[2], b[3], // leaq -0x<offset>(%rbp),%rdi
                         // 0xBF, 0x39, 0x00, 0x00, 0x00, // mov $0x39, %edi
                         0x41, 0xFF, 0xD4 // callq *%r12
                     };
@@ -134,13 +138,11 @@ int main(int argc, char **argv)
 
             case '+':
                 {
+                    char *acc = (char*) &offset_accumulator;
                     char opcodes [] = {
                         // increment the accumulator
+                        // TODO from variable instead of constant offset
                         0x48, 0xFF, 0x45, 0xF0, // incq -0x10(%rbp)
-
-                        // call putchar(the_accumulator)
-                        0x8B, 0x7D, 0xF0, //  mov -0x10(%rbp), %edi
-                        0x41, 0xFF, 0xD4 // callq *%r12
                     };
                     vector_push(&instruction_stream, opcodes, sizeof(opcodes));
                 }
@@ -159,13 +161,11 @@ int main(int argc, char **argv)
     char epilogue [] = {
         // free strings
         0x48, 0x81, 0xC4, t[0], t[1], t[2], t[3], // addq $<x>, %rsp
-        // 0x48, 0x83, 0xC4, 0x08, // addq $8, %rsp
 
         // free accumulator
         0x48, 0x83, 0xC4, 0x08, // addq $8, %rsp
-        // 0x48, 0x81, 0xC4, 0x08, 0x00, 0x00, 0x00, // addq $8, %rsp
 
-        // restore callee saved registers
+        // restore callee saved register
         0x41, 0x5C, // popq %r12
 
         0x5d, // pop rbp
@@ -180,8 +180,8 @@ int main(int argc, char **argv)
     memcpy(mem, instruction_stream.data, instruction_stream.size);
 
     /* typecast memory to a function pointer and call the dynamically created executable code */
-    void (*hq9p_program) (fn_putchar) = mem;
-    hq9p_program(putchar);
+    void (*hq9p_program) (fn_printf) = mem;
+    hq9p_program(printf);
 
     /* clear up */
     munmap(mem, instruction_stream.size);
@@ -190,20 +190,45 @@ int main(int argc, char **argv)
     exit(EXIT_SUCCESS);
 }
 
-int write_to_stack(struct vector* const stream, char* text)
+void write_to_stack(struct vector* const stream, char* text, int* stack_pointer)
 {
-    int additional_bytes_on_stack = 0;
 
-    // push on stack in reverse order
-    int i;
-    for (i = strlen(text)-1; i >= 0; --i) {
-        // TODO 8 byte at once?
-        char push_char [] = {
-            0x6a, text[i]  // pushq $<char>
-        };
-        vector_push(stream, push_char, sizeof(push_char));
-        additional_bytes_on_stack += (sizeof(push_char) - sizeof(char)) * sizeof(long);
+    /*
+        push chars in quads (8 byte) on the stack
+
+        pushing immediate with pushq is not supported or leaves zeros:
+        https://stackoverflow.com/questions/13351363/push-on-64bit-intel-osx
+
+        thus move into register first:
+        movq $0x6f57206f6c6c6548, %rax
+        pushq %rax
+    */
+    char* char_ptr;
+    for (char_ptr = text; *char_ptr != '\0'; char_ptr++){
+        if(*stack_pointer % 8 == 0) {
+            vector_push_byte(stream, 0x48); // movq $<char1, char2, ..., char8>, %rax
+            vector_push_byte(stream, 0xB8);
+        }
+
+        vector_push_byte(stream, *char_ptr); // $<char1, char2, ..., char8>
+        *stack_pointer -= sizeof(char);
+
+        if(*stack_pointer % 8 == 0) {
+                vector_push_byte(stream, 0x50); // pushq %rax
+        }
     }
 
-    return additional_bytes_on_stack;
+    // TODO how to deal with terminator '\0'
+
+    // FIXME zeros act as \0
+    // check if quad completely filled
+    if(*stack_pointer %8 != 0) {
+        // fill remaining bytes with 0
+        while(*stack_pointer % 8 != 0) {
+            vector_push_byte(stream, 0x00);
+            *stack_pointer -= sizeof(char);
+        }
+        vector_push_byte(stream, 0x50); // pushq %rax
+    }
+
 }
