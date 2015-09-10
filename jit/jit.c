@@ -77,13 +77,13 @@ int main(int argc, char **argv)
     int stack_pointer = -0x10; // (%rsp)
     int offset_accumulator = stack_pointer; // accumulator address: -0x10(%rbp)
 
-    write_to_stack(&instruction_stream, "Hello World", &stack_pointer);
+    write_to_stack(&instruction_stream, "Hello World\n", &stack_pointer);
     int offset_hello_world = stack_pointer;
 
-    write_to_stack(&instruction_stream, "Q", &stack_pointer);
+    write_to_stack(&instruction_stream, "Q\n", &stack_pointer);
     int offset_source = stack_pointer;
 
-    write_to_stack(&instruction_stream, "99 Bottles", &stack_pointer);
+    write_to_stack(&instruction_stream, "99 Bottles\n", &stack_pointer);
     int offset_bottles = stack_pointer;
 
 
@@ -192,43 +192,98 @@ int main(int argc, char **argv)
 
 void write_to_stack(struct vector* const stream, char* text, int* stack_pointer)
 {
+    /*
+        Calculate and allocate required stack space (8 aligned, with \0 terminator),
+        then push quads (8 byte) on stack in reverse order. Finally fill incomplete
+        quad with zeros (which act as \0 terminator) or add quad with \0 terminator.
+
+        string_length; required_space_aligned; example
+         0    8   "00000000"    <- \0 terminator + 7 zeros
+         1    8   "H0000000"
+         2    8   "He000000"
+         3    8   "Hel00000"
+         4    8   "Hell0000"
+         5    8   "Hello000"
+         6    8   "Hello 00"
+         7    8   "Hello W0"
+         8   16   "00000000" "Hello Wo"    <- 1 additional quad for \0 terminator
+         9   16   "r0000000" "Hello Wo"
+        10   16   "rl000000" "Hello Wo"
+        11   16   "rld00000" "Hello Wo"
+        12   16   ...
+        13   16   ...
+        14   16   ...
+        15   16   ...
+        16   24   ...    <- 1 additional quad for \0 terminator
+        17   24   ...
+        18   24   ...
+        19   24   ...
+    */
+
+    // calculate stack space
+    int length = strlen(text);
+    int required_space_aligned = length + 8 - (length) % 8;
+
+    // allocate stack space
+    char *s = (char*) &required_space_aligned;
+    char allocate [] = {
+        0x48, 0x81, 0xEC, s[0], s[1], s[2], s[3] // subq $0x<required_space_aligned>, %rsp
+    };
+    vector_push(stream, allocate, sizeof(allocate));
+    *stack_pointer -= required_space_aligned;
 
     /*
-        push chars in quads (8 byte) on the stack
+        push chars in quads on the stack (in reverse order, e.g. ... "rld00000" "hello wo")
 
         pushing immediate with pushq is not supported or leaves zeros:
         https://stackoverflow.com/questions/13351363/push-on-64bit-intel-osx
 
-        thus move into register first:
+        thus move into register first, then move register to stack:
         movq $0x6f57206f6c6c6548, %rax
-        pushq %rax
+        movq %rax,-0x20(%rbp)
     */
+    int write_pos = *stack_pointer; // where to write on stack
+    int chars_written = 0;
     char* char_ptr;
     for (char_ptr = text; *char_ptr != '\0'; char_ptr++){
-        if(*stack_pointer % 8 == 0) {
+        if(chars_written % 8 == 0) {
             vector_push_byte(stream, 0x48); // movq $<char1, char2, ..., char8>, %rax
             vector_push_byte(stream, 0xB8);
         }
 
         vector_push_byte(stream, *char_ptr); // $<char1, char2, ..., char8>
-        *stack_pointer -= sizeof(char);
+        chars_written++;
 
-        if(*stack_pointer % 8 == 0) {
-                vector_push_byte(stream, 0x50); // pushq %rax
+        if(chars_written % 8 == 0) {
+            char *pos = (char*) &write_pos;
+            char mov_to_stack [] = {
+                0x48, 0x89, 0x85, pos[0], pos[1], pos[2], pos[3] // movq %rax,<write_pos>(%rbp)
+            };
+            vector_push(stream, mov_to_stack, sizeof(mov_to_stack));
+            write_pos += 8; // move stack up by 1 quad
         }
     }
 
-    // TODO how to deal with terminator '\0'
+    // if just completed pushing a quad, need to add '\0' terminator
+    if(chars_written % 8 == 0) {
+        char terminator [] = {
+            0x48, 0xB8, '\0' // movq $0x00, %rax
+        };
+        vector_push(stream, terminator, sizeof(terminator));
+        chars_written++;
+    }
 
-    // FIXME zeros act as \0
-    // check if quad completely filled
-    if(*stack_pointer %8 != 0) {
-        // fill remaining bytes with 0
-        while(*stack_pointer % 8 != 0) {
-            vector_push_byte(stream, 0x00);
-            *stack_pointer -= sizeof(char);
+    // if quad not completely filled, fill remaining bytes with 0. will also act as '\0' terminator
+    if(chars_written %8 != 0) {
+        while(chars_written % 8 != 0) {
+            vector_push_byte(stream, '\0');
+            chars_written++;
         }
-        vector_push_byte(stream, 0x50); // pushq %rax
+        char *pos = (char*) &write_pos;
+        char mov_to_stack [] = {
+            0x48, 0x89, 0x85, pos[0], pos[1], pos[2], pos[3] // mov %rax,<write_pos>(%rbp)
+        };
+        vector_push(stream, mov_to_stack, sizeof(mov_to_stack));
     }
 
 }
