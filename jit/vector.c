@@ -14,10 +14,6 @@ void vector_destroy (struct vector* vec) {
     }
 }
 
-void vector_push_byte (struct vector* const vec, char byte) {
-    vector_push(vec, &byte, 1);
-}
-
 void vector_push (struct vector* const vec, char* bytes, size_t len) {
     if (vec->size + len > vec->capacity) {
         vec->capacity *= 2;
@@ -25,4 +21,8 @@ void vector_push (struct vector* const vec, char* bytes, size_t len) {
     }
     memcpy(vec->data + vec->size, bytes, len);
     vec->size += len;
+}
+
+void vector_push_byte (struct vector* const vec, char byte) {
+    vector_push(vec, &byte, 1);
 }
