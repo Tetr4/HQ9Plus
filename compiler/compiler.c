@@ -18,16 +18,16 @@ Compile the compiler:
 Compile and assemble a HQ9+ program:
     long:
         ./HQ9+ ../main.hq9+ > generated_assembly.s
-        gcc -nostartfiles -o program generated_assembly.s
-    
+        gcc -no-pie -nostartfiles -o program generated_assembly.s
+
     short:
-        ./HQ9+ ../main.hq9+ | gcc -nostartfiles -o program -xassembler -
-    
+        ./HQ9+ ../main.hq9+ | gcc -no-pie -nostartfiles -o program -xassembler -
+
 Start the program:
     ./program
-    
+
 Fast testing:
-    gcc -ansi -pedantic -Wall compiler.c -o HQ9+ && ./HQ9+ ../main.hq9+ | gcc -nostartfiles -o program -xassembler - && ./program
+    gcc -ansi -pedantic -Wall compiler.c -o HQ9+ && ./HQ9+ ../main.hq9+ | gcc -no-pie -nostartfiles -o program -xassembler - && ./program
 */
 void print_escaped_source_code(char* filename);
 void print_escaped_bottles_of_beer(int initial_bottle_count);
@@ -37,14 +37,14 @@ int main(int argc, char **argv)
     FILE *file;
     char instruction;
     char* filename;
-    
+
     if(argc != 2)
     {
         /* wrong number of args */
         fprintf(stderr, "Error: exactly 1 HQ9+ source file as arg required\n");
         exit(EXIT_FAILURE);
     }
-    
+
     /* open file */
     filename = argv[1];
     file = fopen(filename, "r");
@@ -52,29 +52,29 @@ int main(int argc, char **argv)
     {
         /* could not open file */
         perror("Error opening file");
-        exit(EXIT_FAILURE); 
+        exit(EXIT_FAILURE);
     }
-    
+
     /* data segment */
     fputs(
       ".data\n"
-      
+
       "hello:\n"
       "  .asciz \"hello world\\n\"\n"
-      
+
       "source:\n"
       "  .asciz \""
     , stdout);
     print_escaped_source_code(filename);
     puts("\"");
-    
+
     fputs(
       "bottles:\n"
       "  .asciz \""
     , stdout);
     print_escaped_bottles_of_beer(99);
     puts("\"");
-    
+
     puts(
       "accumulator:\n"
       "  .long 0\n"
@@ -84,7 +84,7 @@ int main(int argc, char **argv)
     puts(
       ".text\n"
       ".globl _start\n"
-      
+
       "H:\n"
       /* call printf("hello world\n") */
       /* don't use printf varargs -> store 0 as vararg length */
@@ -96,13 +96,13 @@ int main(int argc, char **argv)
       "  leaq hello(%rip), %rdi\n"
       "  call printf\n"
       "  ret\n"
-      
+
       "Q:\n"
       "  movb $0, %al\n"
       "  leaq source(%rip), %rdi\n"
       "  call printf\n"
       "  ret\n"
-      
+
       "Nine:\n"
       /* call printf("%d bottles of beer\n", accumulator) */
       /* TODO assembly loop for whole song */
@@ -112,13 +112,13 @@ int main(int argc, char **argv)
       "  movq accumulator(%rip), %rsi\n"
       "  call printf\n"
       "  ret\n"
-      
+
       "Plus:\n"
       "  incq accumulator(%rip)\n"
       "  ret\n"
-      
+
       "_start:\n"
-      /* align stack pointer (%rsp) with multiple of 16 Byte. 
+      /* align stack pointer (%rsp) with multiple of 16 Byte.
          Stack starts at high address and grows down -> subtract
          suffix: b - Byte / 8  bit
                  w - Word / 16 bit
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
          popq $rbp */
     );
 
-    
+
     /* parse file */
     while((instruction = fgetc(file)) != EOF)
     {
@@ -142,15 +142,15 @@ int main(int argc, char **argv)
             case 'H':
                 puts("  call H");
                 break;
-                
+
             case 'Q':
                 puts("  call Q");
                 break;
-                
+
             case '9':
                 puts("  call Nine");
                 break;
-                
+
             case '+':
                 puts("  call Plus");
                 break;
@@ -160,13 +160,13 @@ int main(int argc, char **argv)
         perror("Error reading file");
     }
     fclose(file);
-    
+
     /* call exit(0) */
     puts(
       "  movq $0, %rdi\n"
       "  call _exit\n"
     );
-    
+
     exit(EXIT_SUCCESS);
 }
 
@@ -175,7 +175,7 @@ void print_escaped_source_code(char* filename)
 {
     int c;
     FILE *file;
-    
+
     /* Open file again for second independent seek point indicator.
        Read only -> No problem to have same file open multiple times. */
     file = fopen(filename, "r");
@@ -184,7 +184,7 @@ void print_escaped_source_code(char* filename)
         perror("Error opening file");
         exit(EXIT_FAILURE);
     }
-    
+
     /* Print source code */
     while ((c = getc(file)) != EOF)
     {
@@ -206,7 +206,7 @@ void print_escaped_source_code(char* filename)
                 putchar(c);
         }
     }
-    
+
     /* Close second file descriptor */
     fclose(file);
 }

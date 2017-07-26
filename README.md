@@ -14,9 +14,9 @@ See [Interpreter, Compiler, JIT](https://nickdesaulniers.github.io/blog/2015/05/
 
 ## Compiler
 + Compile the compiler: `gcc -ansi -pedantic -Wall compiler.c -o HQ9+`
-+ Compile and assemble a HQ9+ program: `./HQ9+ ../main.hq9+ | gcc -nostartfiles -o program -xassembler -`
++ Compile and assemble a HQ9+ program: `./HQ9+ ../main.hq9+ | gcc -no-pie -nostartfiles -o program -xassembler -`
 + Start the program: `./program`
 
 ## JIT-Compiler
-+ Compile the jit compiler: `gcc jit.c vector.c -o jit`
-+ Jit a program: `./jit ../main.hq9+`
++ Compile the jit compiler: `gcc jit.c vector.c -o HQ9+`
++ Jit a program: `./HQ9+ ../main.hq9+`
